@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::fmt::Write as _;
 
 use crate::data::{DashboardData, MetricSeries, muscle_mass_on_date};
-use crate::stats::trend_label;
+use crate::stats::{median, trend_label};
 
 #[derive(Serialize)]
 struct ChartPayload {
@@ -392,23 +392,33 @@ fn sleep_summary_html(data: &DashboardData) -> String {
         return r#"<p style="color:var(--muted);font-size:0.85rem">No sleep data</p>"#.to_string();
     }
 
-    let total: i32 = data.sleep.iter().map(|s| s.total_sleep_minutes).sum();
-    let avg = total as f64 / data.sleep.len() as f64;
-    let avg_h = avg / 60.0;
-    let deep: i32 = data.sleep.iter().map(|s| s.deep_minutes).sum();
-    let rem: i32 = data.sleep.iter().map(|s| s.rem_minutes).sum();
+    let sleep_hours: Vec<f64> = data
+        .sleep
+        .iter()
+        .map(|s| s.total_sleep_minutes as f64 / 60.0)
+        .collect();
+    let deep_minutes: Vec<f64> = data
+        .sleep
+        .iter()
+        .map(|s| s.deep_minutes as f64)
+        .collect();
+    let rem_minutes: Vec<f64> = data.sleep.iter().map(|s| s.rem_minutes as f64).collect();
+
+    let med_sleep_h = median(&sleep_hours).unwrap_or(0.0);
+    let med_deep = median(&deep_minutes).unwrap_or(0.0);
+    let med_rem = median(&rem_minutes).unwrap_or(0.0);
 
     format!(
         r#"<div class="card-grid">
-  <div class="card"><div class="label">Avg Sleep</div><div class="value">{:.1}h</div></div>
+  <div class="card"><div class="label">Median Sleep</div><div class="value">{:.1}h</div></div>
   <div class="card"><div class="label">Nights</div><div class="value">{}</div></div>
-  <div class="card"><div class="label">Avg Deep</div><div class="value">{}m</div></div>
-  <div class="card"><div class="label">Avg REM</div><div class="value">{}m</div></div>
+  <div class="card"><div class="label">Median Deep</div><div class="value">{:.0}m</div></div>
+  <div class="card"><div class="label">Median REM</div><div class="value">{:.0}m</div></div>
 </div>"#,
-        avg_h,
+        med_sleep_h,
         data.sleep.len(),
-        deep / data.sleep.len() as i32,
-        rem / data.sleep.len() as i32,
+        med_deep,
+        med_rem,
     )
 }
 
@@ -417,20 +427,26 @@ fn nutrition_summary_html(data: &DashboardData) -> String {
         return r#"<p style="color:var(--muted);font-size:0.85rem">No nutrition data</p>"#.to_string();
     }
 
-    let n = data.nutrition.len() as f64;
-    let avg_kcal: f64 = data.nutrition.iter().map(|d| d.totals.energy_kcal).sum::<f64>() / n;
-    let avg_protein: f64 = data.nutrition.iter().map(|d| d.totals.protein_g).sum::<f64>() / n;
-    let avg_fiber: f64 = data.nutrition.iter().map(|d| d.totals.fiber_g).sum::<f64>() / n;
-    let avg_sugars: f64 = data.nutrition.iter().map(|d| d.totals.sugars_g).sum::<f64>() / n;
+    let kcal: Vec<f64> = data
+        .nutrition
+        .iter()
+        .map(|d| d.totals.energy_kcal)
+        .collect();
+    let protein: Vec<f64> = data.nutrition.iter().map(|d| d.totals.protein_g).collect();
+    let fiber: Vec<f64> = data.nutrition.iter().map(|d| d.totals.fiber_g).collect();
+    let sugars: Vec<f64> = data.nutrition.iter().map(|d| d.totals.sugars_g).collect();
 
     format!(
         r#"<div class="card-grid">
-  <div class="card"><div class="label">Avg Calories</div><div class="value">{:.0}</div></div>
-  <div class="card"><div class="label">Avg Protein</div><div class="value">{:.0}g</div></div>
-  <div class="card"><div class="label">Avg Fiber</div><div class="value">{:.1}g</div></div>
-  <div class="card"><div class="label">Avg Sugars</div><div class="value">{:.0}g</div></div>
+  <div class="card"><div class="label">Median Calories</div><div class="value">{:.0}</div></div>
+  <div class="card"><div class="label">Median Protein</div><div class="value">{:.0}g</div></div>
+  <div class="card"><div class="label">Median Fiber</div><div class="value">{:.1}g</div></div>
+  <div class="card"><div class="label">Median Sugars</div><div class="value">{:.0}g</div></div>
 </div>"#,
-        avg_kcal, avg_protein, avg_fiber, avg_sugars,
+        median(&kcal).unwrap_or(0.0),
+        median(&protein).unwrap_or(0.0),
+        median(&fiber).unwrap_or(0.0),
+        median(&sugars).unwrap_or(0.0),
     )
 }
 

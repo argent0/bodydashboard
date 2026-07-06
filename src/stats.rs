@@ -182,6 +182,22 @@ pub fn confidence_at(
     (y, y - margin, y + margin)
 }
 
+pub fn median(values: &[f64]) -> Option<f64> {
+    if values.is_empty() {
+        return None;
+    }
+
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mid = sorted.len() / 2;
+    if sorted.len() % 2 == 1 {
+        Some(sorted[mid])
+    } else {
+        Some((sorted[mid - 1] + sorted[mid]) / 2.0)
+    }
+}
+
 pub fn trend_label(slope_per_day: f64, unit: &str) -> String {
     if slope_per_day.abs() < 0.001 {
         format!("stable ({unit})")
@@ -195,6 +211,13 @@ pub fn trend_label(slope_per_day: f64, unit: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn median_odd_and_even_counts() {
+        assert_eq!(median(&[3.0, 1.0, 2.0]), Some(2.0));
+        assert_eq!(median(&[4.0, 1.0, 3.0, 2.0]), Some(2.5));
+        assert_eq!(median(&[]), None);
+    }
 
     #[test]
     fn regression_on_linear_data() {
