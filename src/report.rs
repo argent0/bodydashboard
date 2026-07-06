@@ -110,6 +110,9 @@ section h3 {{
   gap: 12px;
   margin-bottom: 20px;
 }}
+.card-grid.overview-metrics {{
+  grid-template-columns: repeat(2, 1fr);
+}}
 .card {{
   background: var(--surface);
   border-radius: var(--radius);
@@ -186,7 +189,7 @@ nav a.active {{ color: var(--accent); background: var(--surface2); }}
 .subsection {{ margin-bottom: 28px; }}
 @media (min-width: 600px) {{
   main {{ padding: 24px; }}
-  .card-grid {{ grid-template-columns: repeat(3, 1fr); }}
+  .card-grid:not(.overview-metrics) {{ grid-template-columns: repeat(3, 1fr); }}
 }}
 </style>
 </head>
@@ -350,38 +353,38 @@ handleNav();
 fn overview_cards(data: &DashboardData) -> String {
     let mut cards = String::new();
 
-    if let Some(latest) = data.measurements.first() {
-        for metric in &data.body_metrics {
-            if let Some(last) = metric.points.last() {
-                let trend = metric
-                    .regression
-                    .as_ref()
-                    .map(|r| {
-                        let cls = if r.slope_per_day.abs() < 0.001 {
-                            "trend-flat"
-                        } else if r.slope_per_day > 0.0 {
-                            "trend-up"
-                        } else {
-                            "trend-down"
-                        };
-                        let label = trend_label(r.slope_per_day, &metric.unit);
-                        format!(r#"<div class="trend {cls}">{label}</div>"#)
-                    })
-                    .unwrap_or_else(|| r#"<div class="trend trend-flat">—</div>"#.to_string());
-
-                write!(
-                    cards,
-                    r#"<div class="card"><div class="label">{}</div><div class="value">{:.1} {}</div>{}</div>"#,
-                    metric.name, last.y, metric.unit, trend
-                )
-                .unwrap();
-            }
-        }
-
-        let _ = latest;
+    if data.measurements.is_empty() {
+        return r#"<div class="card-grid overview-metrics"></div>"#.to_string();
     }
 
-    cards
+    for metric in &data.body_metrics {
+        if let Some(last) = metric.points.last() {
+            let trend = metric
+                .regression
+                .as_ref()
+                .map(|r| {
+                    let cls = if r.slope_per_day.abs() < 0.001 {
+                        "trend-flat"
+                    } else if r.slope_per_day > 0.0 {
+                        "trend-up"
+                    } else {
+                        "trend-down"
+                    };
+                    let label = trend_label(r.slope_per_day, &metric.unit);
+                    format!(r#"<div class="trend {cls}">{label}</div>"#)
+                })
+                .unwrap_or_else(|| r#"<div class="trend trend-flat">—</div>"#.to_string());
+
+            write!(
+                cards,
+                r#"<div class="card"><div class="label">{}</div><div class="value">{:.1} {}</div>{}</div>"#,
+                metric.name, last.y, metric.unit, trend
+            )
+            .unwrap();
+        }
+    }
+
+    format!(r#"<div class="card-grid overview-metrics">{cards}</div>"#)
 }
 
 fn sleep_summary_html(data: &DashboardData) -> String {
