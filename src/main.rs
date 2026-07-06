@@ -1,3 +1,4 @@
+mod cli;
 mod data;
 mod report;
 mod stats;
@@ -6,49 +7,40 @@ use clap::Parser;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Parser)]
-#[command(name = "bodydashboard", about = "Generate a health dashboard HTML report")]
-struct Args {
-    /// Number of days of data to include
-    #[arg(short, long, default_value = "7")]
-    days: u32,
-
-    /// Directory where the report will be saved
-    #[arg(short, long, default_value = ".")]
-    output_dir: PathBuf,
-
-    /// Report filename
-    #[arg(long, default_value = "report.html")]
-    name: String,
-}
+use cli::{Cli, Commands, CreateArgs, ReportAction};
 
 fn main() {
-    let args = Args::parse();
-    let output_path = args.output_dir.join(&args.name);
+    if let Err(e) = run() {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
+    }
+}
 
-    let data = match data::fetch_all(args.days) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("Error fetching data: {e}");
-            std::process::exit(1);
-        }
-    };
+fn run() -> Result<(), String> {
+    let cli = Cli::parse();
 
+    match cli.command {
+        Commands::Report { action } => match action {
+            ReportAction::Create(args) => create_report(args),
+        },
+    }
+}
+
+fn create_report(args: CreateArgs) -> Result<(), String> {
+    let output_path: PathBuf = args.output_dir.join(&args.name);
+
+    let data = data::fetch_all(args.days)?;
     let html = report::generate_html(&data);
 
-    if let Err(e) = fs::create_dir_all(&args.output_dir) {
-        eprintln!("Error creating output directory: {e}");
-        std::process::exit(1);
-    }
-
-    if let Err(e) = fs::write(&output_path, &html) {
-        eprintln!("Error writing report: {e}");
-        std::process::exit(1);
-    }
+    fs::create_dir_all(&args.output_dir)
+        .map_err(|e| format!("creating output directory: {e}"))?;
+    fs::write(&output_path, &html).map_err(|e| format!("writing report: {e}"))?;
 
     println!(
         "Report written to {} ({} bytes)",
         output_path.display(),
         html.len()
     );
+
+    Ok(())
 }
