@@ -395,7 +395,7 @@ fn sleep_summary_html(data: &DashboardData) -> String {
     let sleep_hours: Vec<f64> = data
         .sleep
         .iter()
-        .map(|s| s.total_sleep_minutes as f64 / 60.0)
+        .map(|s| s.total_sleep_minutes() as f64 / 60.0)
         .collect();
     let deep_minutes: Vec<f64> = data
         .sleep
@@ -598,7 +598,7 @@ fn sleep_chart_json(data: &DashboardData) -> String {
                 label: "Total (h)".to_string(),
                 data: sorted
                     .iter()
-                    .map(|s| Some(s.total_sleep_minutes as f64 / 60.0))
+                    .map(|s| Some(s.total_sleep_minutes() as f64 / 60.0))
                     .collect(),
                 border_color: "#4fc3f7".to_string(),
                 background_color: "rgba(79,195,247,0.6)".to_string(),
@@ -646,7 +646,7 @@ fn sleep_history_table(data: &DashboardData) -> String {
 
     let mut rows = String::new();
     for s in &sorted {
-        let hours = s.total_sleep_minutes as f64 / 60.0;
+        let hours = s.total_sleep_minutes() as f64 / 60.0;
         let notes = s.notes.as_deref().unwrap_or("—");
         write!(
             rows,

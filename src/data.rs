@@ -10,18 +10,27 @@ pub struct Measurement {
     pub weight_kg: f64,
     pub body_fat_pct: f64,
     pub skeletal_muscle_pct: f64,
-    pub resting_metabolism_kcal: i32,
+    #[serde(default)]
+    pub resting_metabolism_kcal: Option<i32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SleepEntry {
     pub date: NaiveDate,
-    pub total_sleep_minutes: i32,
+    #[serde(default)]
+    pub total_sleep_minutes: Option<i32>,
     pub rem_minutes: i32,
     pub deep_minutes: i32,
     pub light_minutes: i32,
     pub awake_minutes: i32,
     pub notes: Option<String>,
+}
+
+impl SleepEntry {
+    pub fn total_sleep_minutes(&self) -> i32 {
+        self.total_sleep_minutes
+            .unwrap_or(self.rem_minutes + self.deep_minutes + self.light_minutes)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -224,9 +233,13 @@ fn build_body_metrics(measurements: &[Measurement], origin: NaiveDate) -> Vec<Me
         make_series(
             "Resting Metabolism",
             "kcal",
-            &sorted,
+            &sorted
+                .iter()
+                .filter(|m| m.resting_metabolism_kcal.is_some())
+                .copied()
+                .collect::<Vec<_>>(),
             origin,
-            |m| m.resting_metabolism_kcal as f64,
+            |m| m.resting_metabolism_kcal.unwrap() as f64,
         ),
     ]
 }
@@ -283,6 +296,56 @@ pub fn muscle_mass_on_date(measurements: &[Measurement], date: NaiveDate) -> Opt
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sleep_parses_without_total_sleep_minutes() {
+        let json = r#"[
+            {
+                "date": "2026-06-25",
+                "rem_minutes": 35,
+                "deep_minutes": 7,
+                "light_minutes": 314,
+                "awake_minutes": 46
+            },
+            {
+                "date": "2026-06-26",
+                "total_sleep_minutes": 400,
+                "rem_minutes": 40,
+                "deep_minutes": 10,
+                "light_minutes": 350,
+                "awake_minutes": 30
+            }
+        ]"#;
+
+        let sleep: Vec<SleepEntry> = serde_json::from_str(json).unwrap();
+        assert_eq!(sleep.len(), 2);
+        assert_eq!(sleep[0].total_sleep_minutes(), 356);
+        assert_eq!(sleep[1].total_sleep_minutes(), 400);
+    }
+
+    #[test]
+    fn measurement_parses_without_resting_metabolism() {
+        let json = r#"[
+            {
+                "date": "2026-06-27",
+                "weight_kg": 81.6,
+                "body_fat_pct": 19.1,
+                "skeletal_muscle_pct": 38.8
+            },
+            {
+                "date": "2026-06-28",
+                "weight_kg": 80.2,
+                "body_fat_pct": 19.4,
+                "skeletal_muscle_pct": 38.6,
+                "resting_metabolism_kcal": 1745
+            }
+        ]"#;
+
+        let measurements: Vec<Measurement> = serde_json::from_str(json).unwrap();
+        assert_eq!(measurements.len(), 2);
+        assert_eq!(measurements[0].resting_metabolism_kcal, None);
+        assert_eq!(measurements[1].resting_metabolism_kcal, Some(1745));
+    }
 
     #[test]
     fn nutrition_parses_days_with_null_totals() {
