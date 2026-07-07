@@ -430,11 +430,19 @@ fn nutrition_summary_html(data: &DashboardData) -> String {
     let kcal: Vec<f64> = data
         .nutrition
         .iter()
-        .map(|d| d.totals.energy_kcal)
+        .map(|d| d.totals.energy_kcal())
         .collect();
-    let protein: Vec<f64> = data.nutrition.iter().map(|d| d.totals.protein_g).collect();
-    let fiber: Vec<f64> = data.nutrition.iter().map(|d| d.totals.fiber_g).collect();
-    let sugars: Vec<f64> = data.nutrition.iter().map(|d| d.totals.sugars_g).collect();
+    let protein: Vec<f64> = data
+        .nutrition
+        .iter()
+        .map(|d| d.totals.protein_g())
+        .collect();
+    let fiber: Vec<f64> = data.nutrition.iter().map(|d| d.totals.fiber_g()).collect();
+    let sugars: Vec<f64> = data
+        .nutrition
+        .iter()
+        .map(|d| d.totals.sugars_g())
+        .collect();
 
     format!(
         r#"<div class="card-grid">
@@ -669,7 +677,10 @@ fn nutrition_calories_chart(data: &DashboardData) -> String {
         labels,
         datasets: vec![ChartDataset {
             label: "Calories".to_string(),
-            data: sorted.iter().map(|d| Some(d.totals.energy_kcal)).collect(),
+            data: sorted
+                .iter()
+                .map(|d| Some(d.totals.energy_kcal()))
+                .collect(),
             border_color: "#4fc3f7".to_string(),
             background_color: "rgba(79,195,247,0.6)".to_string(),
             fill: None,
@@ -687,8 +698,8 @@ fn nutrition_ratio_chart(data: &DashboardData, kind: &str) -> String {
     sorted.sort_by_key(|d| d.date);
 
     let (label, getter): (&str, fn(&crate::data::NutritionTotals) -> f64) = match kind {
-        "protein" => ("Protein / Muscle Mass (g/kg)", |t| t.protein_g),
-        "fat" => ("Fat / Muscle Mass (g/kg)", |t| t.fat_g),
+        "protein" => ("Protein / Muscle Mass (g/kg)", |t| t.protein_g()),
+        "fat" => ("Fat / Muscle Mass (g/kg)", |t| t.fat_g()),
         _ => ("Ratio", |_| 0.0),
     };
 
@@ -748,8 +759,8 @@ fn nutrition_simple_chart(data: &DashboardData, field: &str, label: &str) -> Str
         .iter()
         .map(|d| {
             Some(match field {
-                "fiber_g" => d.totals.fiber_g,
-                "sugars_g" => d.totals.sugars_g,
+                "fiber_g" => d.totals.fiber_g(),
+                "sugars_g" => d.totals.sugars_g(),
                 _ => 0.0,
             })
         })

@@ -40,16 +40,40 @@ struct NutritionPeriod {
 #[derive(Debug, Clone, Deserialize)]
 pub struct NutritionDay {
     pub date: NaiveDate,
+    #[serde(default)]
+    pub total_consumed_items: u32,
     pub totals: NutritionTotals,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct NutritionTotals {
-    pub energy_kcal: f64,
-    pub protein_g: f64,
-    pub fat_g: f64,
-    pub fiber_g: f64,
-    pub sugars_g: f64,
+    pub energy_kcal: Option<f64>,
+    pub protein_g: Option<f64>,
+    pub fat_g: Option<f64>,
+    pub fiber_g: Option<f64>,
+    pub sugars_g: Option<f64>,
+}
+
+impl NutritionTotals {
+    pub fn energy_kcal(&self) -> f64 {
+        self.energy_kcal.unwrap_or(0.0)
+    }
+
+    pub fn protein_g(&self) -> f64 {
+        self.protein_g.unwrap_or(0.0)
+    }
+
+    pub fn fat_g(&self) -> f64 {
+        self.fat_g.unwrap_or(0.0)
+    }
+
+    pub fn fiber_g(&self) -> f64 {
+        self.fiber_g.unwrap_or(0.0)
+    }
+
+    pub fn sugars_g(&self) -> f64 {
+        self.sugars_g.unwrap_or(0.0)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -174,7 +198,11 @@ fn fetch_nutrition(days: u32) -> Result<Vec<NutritionDay>, String> {
     )?;
     let report: NutritionReport =
         serde_json::from_str(&json).map_err(|e| format!("Failed to parse nutrition: {e}"))?;
-    Ok(report.days)
+    Ok(report
+        .days
+        .into_iter()
+        .filter(|d| d.total_consumed_items > 0)
+        .collect())
 }
 
 fn build_body_metrics(measurements: &[Measurement], origin: NaiveDate) -> Vec<MetricSeries> {
@@ -250,4 +278,51 @@ pub fn muscle_mass_on_date(measurements: &[Measurement], date: NaiveDate) -> Opt
                 .min_by_key(|m| (m.date - date).num_days().unsigned_abs())
                 .map(|m| m.muscle_mass_kg())
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nutrition_parses_days_with_null_totals() {
+        let json = r#"{
+            "period": { "since": "2026-07-06", "until": "2026-07-07", "days": 2 },
+            "days": [
+                {
+                    "date": "2026-07-06",
+                    "total_consumed_items": 3,
+                    "totals": {
+                        "energy_kcal": 1500.0,
+                        "protein_g": 120.0,
+                        "fat_g": 50.0,
+                        "fiber_g": 20.0,
+                        "sugars_g": 30.0
+                    }
+                },
+                {
+                    "date": "2026-07-07",
+                    "total_consumed_items": 0,
+                    "totals": {
+                        "energy_kcal": null,
+                        "protein_g": null,
+                        "fat_g": null,
+                        "fiber_g": null,
+                        "sugars_g": null
+                    }
+                }
+            ]
+        }"#;
+
+        let report: NutritionReport = serde_json::from_str(json).unwrap();
+        let days: Vec<NutritionDay> = report
+            .days
+            .into_iter()
+            .filter(|d| d.total_consumed_items > 0)
+            .collect();
+
+        assert_eq!(days.len(), 1);
+        assert_eq!(days[0].date, NaiveDate::from_ymd_opt(2026, 7, 6).unwrap());
+        assert!((days[0].totals.energy_kcal() - 1500.0).abs() < f64::EPSILON);
+    }
 }
