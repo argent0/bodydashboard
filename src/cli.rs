@@ -36,6 +36,6 @@ pub struct CreateArgs {
     pub output_dir: PathBuf,
 
     /// Report filename
-    #[arg(long, default_value = "report.html")]
+    #[arg(long, default_value = "index.html")]
     pub name: String,
 }
