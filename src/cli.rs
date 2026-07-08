@@ -27,7 +27,7 @@ pub enum ReportAction {
 
 #[derive(Args, Debug)]
 pub struct CreateArgs {
-    /// Number of days of data to include
+    /// Number of complete days of data to include (excludes today)
     #[arg(short, long, default_value = "7")]
     pub days: u32,
 

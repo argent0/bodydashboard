@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{Days, Local, NaiveDate};
 use serde::Deserialize;
 use std::process::Command;
 
@@ -121,28 +121,35 @@ impl Measurement {
     }
 }
 
+pub fn complete_period(days: u32) -> (NaiveDate, NaiveDate) {
+    let period_until = Local::now().date_naive() - Days::new(1);
+    complete_period_ending(days, period_until)
+}
+
+fn complete_period_ending(days: u32, period_until: NaiveDate) -> (NaiveDate, NaiveDate) {
+    let period_since = period_until - Days::new(days.saturating_sub(1) as u64);
+    (period_since, period_until)
+}
+
+fn in_period(date: NaiveDate, since: NaiveDate, until: NaiveDate) -> bool {
+    date >= since && date <= until
+}
+
 pub fn fetch_all(days: u32) -> Result<DashboardData, String> {
-    let mut measurements = fetch_measurements(days)?;
+    let (period_since, period_until) = complete_period(days);
+
+    // Fetch one extra day so we still cover `days` complete days after excluding today.
+    let fetch_days = days.saturating_add(1);
+
+    let mut measurements = fetch_measurements(fetch_days)?;
+    measurements.retain(|m| in_period(m.date, period_since, period_until));
     measurements.sort_by_key(|m| m.date);
-    let sleep = fetch_sleep(days)?;
-    let nutrition = fetch_nutrition(days)?;
 
-    let period_since = measurements
-        .iter()
-        .map(|m| m.date)
-        .chain(nutrition.iter().map(|n| n.date))
-        .chain(sleep.iter().map(|s| s.date))
-        .min()
-        .or_else(|| nutrition.first().map(|n| n.date))
-        .unwrap_or_else(|| chrono::Local::now().date_naive());
+    let mut sleep = fetch_sleep(fetch_days)?;
+    sleep.retain(|s| in_period(s.date, period_since, period_until));
 
-    let period_until = measurements
-        .iter()
-        .map(|m| m.date)
-        .chain(nutrition.iter().map(|n| n.date))
-        .chain(sleep.iter().map(|s| s.date))
-        .max()
-        .unwrap_or(period_since);
+    let mut nutrition = fetch_nutrition(fetch_days)?;
+    nutrition.retain(|n| in_period(n.date, period_since, period_until));
 
     let body_metrics = build_body_metrics(&measurements, period_since);
 
@@ -345,6 +352,31 @@ mod tests {
         assert_eq!(measurements.len(), 2);
         assert_eq!(measurements[0].resting_metabolism_kcal, None);
         assert_eq!(measurements[1].resting_metabolism_kcal, Some(1745));
+    }
+
+    #[test]
+    fn complete_period_ending_spans_requested_days() {
+        let until = NaiveDate::from_ymd_opt(2026, 7, 7).unwrap();
+        let (since, until) = complete_period_ending(7, until);
+        assert_eq!(since, NaiveDate::from_ymd_opt(2026, 7, 1).unwrap());
+        assert_eq!(until, NaiveDate::from_ymd_opt(2026, 7, 7).unwrap());
+    }
+
+    #[test]
+    fn complete_period_ending_single_day_is_yesterday_only() {
+        let until = NaiveDate::from_ymd_opt(2026, 7, 7).unwrap();
+        let (since, until) = complete_period_ending(1, until);
+        assert_eq!(since, until);
+    }
+
+    #[test]
+    fn in_period_includes_boundaries_only() {
+        let since = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
+        let until = NaiveDate::from_ymd_opt(2026, 7, 7).unwrap();
+        assert!(in_period(since, since, until));
+        assert!(in_period(until, since, until));
+        assert!(!in_period(since - Days::new(1), since, until));
+        assert!(!in_period(until + Days::new(1), since, until));
     }
 
     #[test]
