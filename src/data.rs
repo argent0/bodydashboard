@@ -19,9 +19,13 @@ pub struct SleepEntry {
     pub date: NaiveDate,
     #[serde(default)]
     pub total_sleep_minutes: Option<i32>,
+    #[serde(default)]
     pub rem_minutes: i32,
+    #[serde(default)]
     pub deep_minutes: i32,
+    #[serde(default)]
     pub light_minutes: i32,
+    #[serde(default)]
     pub awake_minutes: i32,
     pub notes: Option<String>,
 }
@@ -328,6 +332,26 @@ mod tests {
         assert_eq!(sleep.len(), 2);
         assert_eq!(sleep[0].total_sleep_minutes(), 356);
         assert_eq!(sleep[1].total_sleep_minutes(), 400);
+    }
+
+    #[test]
+    fn sleep_parses_with_omitted_stage_fields() {
+        // bodylog omits stage fields when unset (e.g. light_minutes missing).
+        let json = r#"[
+            {
+                "date": "2026-07-09",
+                "total_sleep_minutes": 439,
+                "rem_minutes": 126,
+                "deep_minutes": 82,
+                "awake_minutes": 3
+            }
+        ]"#;
+
+        let sleep: Vec<SleepEntry> = serde_json::from_str(json).unwrap();
+        assert_eq!(sleep.len(), 1);
+        assert_eq!(sleep[0].light_minutes, 0);
+        assert_eq!(sleep[0].rem_minutes, 126);
+        assert_eq!(sleep[0].total_sleep_minutes(), 439);
     }
 
     #[test]
